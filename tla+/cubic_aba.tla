@@ -90,30 +90,22 @@ VoteFromAnyFByzGte(x, s, c) == \E k \in SUBSET {i \in Proc: isByz[i] = 1} : /\ C
 
 MainVote0(sender) ==
   /\ step[sender] = PREVOTE
-  /\ \/ isByz[sender] = 1
-     \/ /\ isByz[sender] = 0
-       /\ \/ prevoteState[sender] = BSET0
-          \/ prevoteState[sender] = BSET01
+  /\ \/ prevoteState[sender] = BSET0
+     \/ prevoteState[sender] = BSET01
   /\ step' = [step EXCEPT ![sender] = MAINVOTE0]
   /\ sent' = [sent EXCEPT ![sender] = [i \in Proc |-> [s \in Step |-> IF s = MAINVOTE0 THEN 1 ELSE sent[sender][i][s]]]]
   /\ UNCHANGED << isByz, prevoteState, nextPrevote, decide >>
 
 MainVote1(sender) ==
   /\ step[sender] = PREVOTE
-  /\ \/ isByz[sender] = 1
-     \/ /\ isByz[sender] = 0
-       /\ \/ prevoteState[sender] = BSET1
-          \/ prevoteState[sender] = BSET01
+  /\ \/ prevoteState[sender] = BSET1
+     \/ prevoteState[sender] = BSET01
   /\ step' = [step EXCEPT ![sender] = MAINVOTE1]
   /\ sent' = [sent EXCEPT ![sender] = [i \in Proc |-> [s \in Step |-> IF s = MAINVOTE1 THEN 1 ELSE sent[sender][i][s]]]]
   /\ UNCHANGED << isByz, prevoteState, nextPrevote, decide >>
 
 FinalVote0(sender) ==
-  /\ \/ isByz[sender] = 1
-     \/ /\ isByz[sender] = 0
-        (* Warning: It is a necessary but not sufficient condition for sending finavote0. *)
-        (* For the sake of simplifying computational complexity *)
-        /\ VoteFromAnyFPlus1HonestGte(sender, MAINVOTE0, guardR1)
+  /\ VoteSum(sender, MAINVOTE0) >= guardR2
   /\ \/ step[sender] = MAINVOTE1
      \/ step[sender] = MAINVOTE0
   /\ step' = [step EXCEPT ![sender] = FINALVOTE0]
@@ -121,9 +113,7 @@ FinalVote0(sender) ==
   /\ UNCHANGED << isByz, prevoteState, nextPrevote, decide >>
 
 FinalVote1(sender) ==
-  /\ \/ isByz[sender] = 1
-     \/ /\ isByz[sender] = 0
-        /\ VoteFromAnyFPlus1HonestGte(sender, MAINVOTE1, guardR1)
+  /\ VoteSum(sender, MAINVOTE1) >= guardR2
   /\ \/ step[sender] = MAINVOTE1
      \/ step[sender] = MAINVOTE0
   /\ step' = [step EXCEPT ![sender] = FINALVOTE1]
@@ -133,13 +123,11 @@ FinalVote1(sender) ==
 FinalVoteStar(sender) ==
   /\ \/ step[sender] = MAINVOTE1
      \/ step[sender] = MAINVOTE0
-  /\ \/ isByz[sender] = 1
-     \/ /\ isByz[sender] = 0
-        /\ prevoteState[sender] = BSET01
-        /\ VoteFromAnyHonest(sender, MAINVOTE0)
-        /\ VoteFromAnyHonest(sender, MAINVOTE1)
-        /\ \/ VoteFromAnyFByzGte(sender, MAINVOTE0, F)
-           \/ VoteFromAnyFByzGte(sender, MAINVOTE1, F)
+  /\ prevoteState[sender] = BSET01
+  /\ VoteFromAnyHonest(sender, MAINVOTE0)
+  /\ VoteFromAnyHonest(sender, MAINVOTE1)
+  /\ \/ VoteFromAnyFByzGte(sender, MAINVOTE0, F)
+     \/ VoteFromAnyFByzGte(sender, MAINVOTE1, F)
   /\ step' = [step EXCEPT ![sender] = FINALVOTEx]
   /\ sent' = [sent EXCEPT ![sender] = [i \in Proc |-> [s \in Step |-> IF s = FINALVOTEx THEN 1 ELSE sent[sender][i][s]]]]
   /\ UNCHANGED << isByz, prevoteState, nextPrevote, decide >>
@@ -169,13 +157,13 @@ Consume(sender) ==
                  /\ FinalVoteStar(sender)
   
 Decide1(i) ==
-  /\ VoteFromAnyFPlus1HonestGte(i, FINALVOTE1, guardR1)
+  /\ VoteFromAnyFPlus1Gte(i, FINALVOTE1, guardR2)
   /\ decide' = [decide EXCEPT ![i] = DECIDE1]
   /\ nextPrevote' = [nextPrevote EXCEPT ![i] = NEXTPREVOTE1]
   /\ UNCHANGED << step, sent, prevoteState, isByz >>
 
 Decide0(i) ==
-  /\ VoteFromAnyFPlus1HonestGte(i, FINALVOTE0, guardR1)
+  /\ VoteFromAnyFPlus1Gte(i, FINALVOTE0, guardR2)
   /\ decide' = [decide EXCEPT ![i] = DECIDE0]
   /\ nextPrevote' = [nextPrevote EXCEPT ![i] = NEXTPREVOTE0]
   /\ UNCHANGED << step, sent, prevoteState, isByz >>
@@ -198,7 +186,6 @@ NextPrevoteRandom(i) ==
   /\ UNCHANGED << step, sent, prevoteState, isByz, decide >>
 
 Decide(i) ==
-  /\ isByz[i] = 0
   /\ decide[i] = UNDEFINED
   /\ nextPrevote[i] = UNDEFINED
   /\ \/ step[i] = FINALVOTE0
@@ -211,13 +198,21 @@ Decide(i) ==
      \/ NextPrevoteRandom(i)
 
 Next ==
-  /\ \E self \in Proc :
-     \/ Consume(self)
-     \/ Decide(self)
-     \/ UNCHANGED vars
+  \/ /\ step[0] = UNDEFINED
+     /\ step' = [step EXCEPT ![0] = PREVOTE]
+     (* todo *)
+     /\ sent' = [sent EXCEPT [j \in Proc |-> IF isByz[j] = 1 THEN sent[j] ELSE [
+                                                                                k \in Proc |-> IF isByz[k] THEN sent[j][k] ELSE 
+                                                                                ]]]
+     /\ UNCHANGED << prevoteState, isByz, decide, nextPrevote >>
+  \/ /\ step[0] # UNDEFINED
+     /\ \E self \in Proc :
+        \/ Consume(self)
+        \/ Decide(self)
+        \/ UNCHANGED vars
 
 Spec == Init /\ [][Next]_vars 
-             /\ WF_vars(\E self \in Proc : \/ Consume(self)
+             /\ WF_vars(\E self \in {j \in Proc: isByz[j] = 0} : \/ Consume(self)
                                            \/ Decide(self))
 
 \**Symmetry == Permutations(Proc)
