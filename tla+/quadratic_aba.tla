@@ -113,6 +113,7 @@ Vote1(sender) ==
   /\ sent' = [sent EXCEPT ![sender] = [i \in Proc |-> [s \in Step |-> IF s = VOTE1 THEN 1 ELSE sent[sender][i][s]]]]
   /\ UNCHANGED << isByz, prevoteState, nextPrevote, decide >>
 
+(* todo *)
 MainVote0(sender) ==
   /\ \/ step[sender] = VOTE1
      \/ step[sender] = VOTE0

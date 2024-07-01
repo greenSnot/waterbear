@@ -171,25 +171,39 @@ Decide0(i) ==
 NextPrevote0(i) ==
   /\ \/ prevoteState[i] = BSET0
      \/ prevoteState[i] = BSET01
-  /\ \E x \in SUBSET Proc: /\ Cardinality(x) = guardR1
-                           /\ \A j \in x: sent[j][i][FINALVOTE0] = 1
+  /\ \E x \in SUBSET Proc: /\ Cardinality(x) = guardR2
+                           /\ \A j \in x: \/ isByz[j] = 1
+                                          \/ /\ isByz[j] = 0
+                                             /\ \/ step[j] = FINALVOTE0
+                                                \/ step[j] = FINALVOTE1
+                                                \/ step[j] = FINALVOTEx
+                           /\ ArrSum([s \in Proc |-> IF s \in x THEN sent[s][i][FINALVOTE0] ELSE 0]) >= guardR1
   /\ nextPrevote' = [nextPrevote EXCEPT ![i] = NEXTPREVOTE0]
   /\ UNCHANGED << step, sent, prevoteState, isByz, decide >>
 
 NextPrevote1(i) ==
   /\ \/ prevoteState[i] = BSET0
      \/ prevoteState[i] = BSET01
-  /\ \E x \in SUBSET Proc: /\ Cardinality(x) = guardR1
-                           /\ \A j \in x: sent[j][i][FINALVOTE1] = 1
+  /\ \E x \in SUBSET Proc: /\ Cardinality(x) = guardR2
+                           /\ \A j \in x: \/ isByz[j] = 1
+                                          \/ /\ isByz[j] = 0
+                                             /\ \/ step[j] = FINALVOTE0
+                                                \/ step[j] = FINALVOTE1
+                                                \/ step[j] = FINALVOTEx
+                           /\ ArrSum([s \in Proc |-> IF s \in x THEN sent[s][i][FINALVOTE1] ELSE 0]) >= guardR1
   /\ nextPrevote' = [nextPrevote EXCEPT ![i] = NEXTPREVOTE1]
   /\ UNCHANGED << step, sent, prevoteState, isByz, decide >>
 
 NextPrevoteRandom(i) ==
   /\ prevoteState[i] = BSET01
   /\ \E x \in SUBSET Proc: /\ Cardinality(x) = guardR2
-                           /\ \/ \A j \in x: sent[j][i][FINALVOTEx] = 1
-                              \/ /\ ArrSum([s \in Proc |-> IF s \in x THEN sent[s][i][FINALVOTE0] ELSE 0]) < guardR1
-                                 /\ ArrSum([s \in Proc |-> IF s \in x THEN sent[s][i][FINALVOTE1] ELSE 0]) < guardR1
+                            /\ \A j \in x: \/ isByz[j] = 1
+                                           \/ /\ isByz[j] = 0
+                                              /\ \/ step[j] = FINALVOTE0
+                                                 \/ step[j] = FINALVOTE1
+                                                 \/ step[j] = FINALVOTEx
+                            /\ ArrSum([s \in Proc |-> IF s \in x THEN sent[s][i][FINALVOTE1] ELSE 0]) < guardR1
+                            /\ ArrSum([s \in Proc |-> IF s \in x THEN sent[s][i][FINALVOTE0] ELSE 0]) < guardR1
   /\ nextPrevote' = [nextPrevote EXCEPT ![i] = NEXTPREVOTEx]
   /\ UNCHANGED << step, sent, prevoteState, isByz, decide >>
 
