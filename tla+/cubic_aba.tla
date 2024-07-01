@@ -78,15 +78,11 @@ IN Helper(s)
 
 VoteSumS(i, _step, _set) == 
     ArrSum([s \in Proc |-> IF s \in _set THEN sent[s][i][_step] ELSE 0])
-VoteSum(i, _step, _s) == 
-    ArrSum([s \in Proc |-> IF s = _s THEN sent[s][i][_step] ELSE 0])
+VoteSum(i, _step) == 
+    ArrSum([s \in Proc |-> sent[s][i][_step]])
 
 VoteFromAnyHonest(i, s) == \E j \in Proc: isByz[j] = 0 /\ sent[j][i][s] = 1
 VoteFromAnyByz(i, s) == \E j \in Proc: isByz[j] = 1 /\ sent[j][i][s] = 1
-VoteFromAnyFPlus1HonestGte(x, s, c) == \E k \in SUBSET {i \in Proc: isByz[i] = 0} : /\ Cardinality(k) = F + 1
-                                                                                   /\ VoteSumS(x, s, k) >= c
-VoteFromAnyFByzGte(x, s, c) == \E k \in SUBSET {i \in Proc: isByz[i] = 1} : /\ Cardinality(k) = F
-                                                                                   /\ VoteSumS(x, s, k) >= c
 
 MainVote0(sender) ==
   /\ step[sender] = PREVOTE
@@ -124,10 +120,8 @@ FinalVoteStar(sender) ==
   /\ \/ step[sender] = MAINVOTE1
      \/ step[sender] = MAINVOTE0
   /\ prevoteState[sender] = BSET01
-  /\ VoteFromAnyHonest(sender, MAINVOTE0)
-  /\ VoteFromAnyHonest(sender, MAINVOTE1)
-  /\ \/ VoteFromAnyFByzGte(sender, MAINVOTE0, F)
-     \/ VoteFromAnyFByzGte(sender, MAINVOTE1, F)
+  /\ \E i \in SUBSET Proc: /\ Cardinality(i) = guardR2
+                           /\ \E j \in i, k \in i: j # k /\ sent[j][sender][MAINVOTE0] = 1 /\ sent[k][sender][MAINVOTE1] = 1
   /\ step' = [step EXCEPT ![sender] = FINALVOTEx]
   /\ sent' = [sent EXCEPT ![sender] = [i \in Proc |-> [s \in Step |-> IF s = FINALVOTEx THEN 1 ELSE sent[sender][i][s]]]]
   /\ UNCHANGED << isByz, prevoteState, nextPrevote, decide >>
@@ -157,31 +151,45 @@ Consume(sender) ==
                  /\ FinalVoteStar(sender)
   
 Decide1(i) ==
-  /\ VoteFromAnyFPlus1Gte(i, FINALVOTE1, guardR2)
+  /\ \/ prevoteState[i] = BSET1
+     \/ prevoteState[i] = BSET01
+  /\ \E x \in SUBSET Proc: /\ Cardinality(x) = guardR2
+                           /\ \A j \in x: sent[j][i][FINALVOTE1] = 1
   /\ decide' = [decide EXCEPT ![i] = DECIDE1]
   /\ nextPrevote' = [nextPrevote EXCEPT ![i] = NEXTPREVOTE1]
   /\ UNCHANGED << step, sent, prevoteState, isByz >>
 
 Decide0(i) ==
-  /\ VoteFromAnyFPlus1Gte(i, FINALVOTE0, guardR2)
+  /\ \/ prevoteState[i] = BSET0
+     \/ prevoteState[i] = BSET01
+  /\ \E x \in SUBSET Proc: /\ Cardinality(x) = guardR2
+                           /\ \A j \in x: sent[j][i][FINALVOTE0] = 1
   /\ decide' = [decide EXCEPT ![i] = DECIDE0]
   /\ nextPrevote' = [nextPrevote EXCEPT ![i] = NEXTPREVOTE0]
   /\ UNCHANGED << step, sent, prevoteState, isByz >>
 
 NextPrevote0(i) ==
-  /\ VoteFromAnyHonest(i, FINALVOTE0)
-  /\ \E j \in Proc: sent[j][i][FINALVOTEx] = 1
+  /\ \/ prevoteState[i] = BSET0
+     \/ prevoteState[i] = BSET01
+  /\ \E x \in SUBSET Proc: /\ Cardinality(x) = guardR1
+                           /\ \A j \in x: sent[j][i][FINALVOTE0] = 1
   /\ nextPrevote' = [nextPrevote EXCEPT ![i] = NEXTPREVOTE0]
   /\ UNCHANGED << step, sent, prevoteState, isByz, decide >>
 
 NextPrevote1(i) ==
-  /\ VoteFromAnyHonest(i, FINALVOTE1)
-  /\ \E j \in Proc: sent[j][i][FINALVOTEx] = 1
+  /\ \/ prevoteState[i] = BSET0
+     \/ prevoteState[i] = BSET01
+  /\ \E x \in SUBSET Proc: /\ Cardinality(x) = guardR1
+                           /\ \A j \in x: sent[j][i][FINALVOTE1] = 1
   /\ nextPrevote' = [nextPrevote EXCEPT ![i] = NEXTPREVOTE1]
   /\ UNCHANGED << step, sent, prevoteState, isByz, decide >>
 
 NextPrevoteRandom(i) ==
-  /\ \A j \in {k \in Proc: isByz[k] = 0}: step[j] = FINALVOTEx
+  /\ prevoteState[i] = BSET01
+  /\ \E x \in SUBSET Proc: /\ Cardinality(x) = guardR2
+                           /\ \/ \A j \in x: sent[j][i][FINALVOTEx] = 1
+                              \/ /\ ArrSum([s \in Proc |-> IF s \in x THEN sent[s][i][FINALVOTE0] ELSE 0]) < guardR1
+                                 /\ ArrSum([s \in Proc |-> IF s \in x THEN sent[s][i][FINALVOTE1] ELSE 0]) < guardR1
   /\ nextPrevote' = [nextPrevote EXCEPT ![i] = NEXTPREVOTEx]
   /\ UNCHANGED << step, sent, prevoteState, isByz, decide >>
 
@@ -198,15 +206,23 @@ Decide(i) ==
      \/ NextPrevoteRandom(i)
 
 Next ==
-  \/ /\ step[0] = UNDEFINED
-     /\ step' = [step EXCEPT ![0] = PREVOTE]
-     (* todo *)
-     /\ sent' = [sent EXCEPT [j \in Proc |-> IF isByz[j] = 1 THEN sent[j] ELSE [
-                                                                                k \in Proc |-> IF isByz[k] THEN sent[j][k] ELSE 
-                                                                                ]]]
-     /\ UNCHANGED << prevoteState, isByz, decide, nextPrevote >>
-  \/ /\ step[0] # UNDEFINED
-     /\ \E self \in Proc :
+  \/ /\ step[1] = UNDEFINED
+     /\ \E i \in {j \in Proc: isByz[j] = 1}:
+        \/ \E k \in {l \in Proc: isByz[l] = 0}:
+            \/ \E s \in {MAINVOTE0, MAINVOTE1}:
+                \/ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF s = _s THEN 1 ELSE 0] ELSE sent[i][m]]]
+        \/ \E s \in {FINALVOTE0, FINALVOTE1, FINALVOTEx}:
+           (* RBC *)
+           \/ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF isByz[m] = 0 THEN [_s \in Step |-> IF s = _s THEN 1 ELSE 0] ELSE sent[i][m]]]
+     /\ \E i \in {j \in Proc: isByz[j] = 1}:
+        \/ \E k \in {l \in Proc: isByz[l] = 0}:
+            /\  \A l \in Proc: sent[i][l][MAINVOTE0] = 0
+     /\ UNCHANGED << prevoteState, isByz, decide, nextPrevote, step >>
+  \/ /\ step[1] = UNDEFINED
+     /\ step' = [step EXCEPT ![1] = PREVOTE]
+     /\ UNCHANGED << prevoteState, isByz, decide, nextPrevote, sent >>
+  \/ /\ step[1] # UNDEFINED
+     /\ \E self \in {x \in Proc: isByz[x] = 0} :
         \/ Consume(self)
         \/ Decide(self)
         \/ UNCHANGED vars

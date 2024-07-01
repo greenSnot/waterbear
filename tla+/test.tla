@@ -4,7 +4,7 @@ EXTENDS Naturals, Integers, Sequences, FiniteSets, TLC
 
 CONSTANTS N, F, guardR1, guardR2
 
-VARIABLES sent, ready, isByz
+VARIABLES sent, isByz
                           
 ASSUME NF ==
   /\ guardR1 \in Nat
@@ -16,7 +16,7 @@ ASSUME NF ==
   /\ guardR2 > (2 * N) \div 3
 
 Proc == 1 .. N
-vars == << sent, ready, isByz >>
+vars == << sent, isByz >>
 
 rounds == 0 .. 1
 
@@ -28,6 +28,7 @@ BSET01 == "bset01"
 PREVOTE == "prevote"
 MAINVOTE0 == "mainvote0"
 MAINVOTE1 == "mainvote1"
+MAINVOTEx == "mainvotex"
 FINALVOTE0 == "finalvote0"
 FINALVOTE1 == "finalvote1"
 FINALVOTEx == "finalvote*"
@@ -42,6 +43,7 @@ DECIDE1 == "1"
 Step == {
     MAINVOTE0,
     MAINVOTE1,
+    MAINVOTEx,
     FINALVOTE0,
     FINALVOTE1,
     FINALVOTEx
@@ -50,16 +52,18 @@ Step == {
 Init == 
   /\ isByz = [i \in Proc |-> IF i <= F THEN 1 ELSE 0]
   /\ sent = [i \in Proc |-> [j \in Proc |-> [s \in Step |-> 0]]]
-  /\ ready = 0
 
 Next ==
-  \/ /\ ready = 0
-     /\ \E a \in Proc:
-        sent' = [sent EXCEPT ![a] = 1]
-     /\ ready' = 1
+  \/ /\ \E i \in {j \in Proc: isByz[j] = 1}:
+        \/ \E k \in {l \in Proc: isByz[l] = 0}:
+            \/ \E s \in {VOTE0, VOTE1}:
+                \/ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF s = _s THEN 1 ELSE 0] ELSE sent[i][m]]]
+            \/ \E s \in {MAINVOTE0, MAINVOTE1, MAINVOTEx}:
+                \/ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF s = _s THEN 1 ELSE 0] ELSE sent[i][m]]]
+            \/ \E s \in {FINALVOTE0, FINALVOTE1, FINALVOTEx}:
+                \/ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF s = _s THEN 1 ELSE 0] ELSE sent[i][m]]]
      /\ UNCHANGED << isByz >>
-  \/ /\ ready = 1
-     /\ UNCHANGED vars
+  \/ UNCHANGED vars
 
 Spec == Init /\ [][Next]_vars 
 
