@@ -49,6 +49,7 @@ NEXTPREVOTEx == "random"
 
 DECIDE0 == "0"
 DECIDE1 == "1"
+DECIDEx == "x"
 
 Step == {
     MAINVOTE0,
@@ -62,7 +63,7 @@ Init ==
   /\ sent = [i \in Proc |-> [j \in Proc |-> [s \in Step |-> 0]]]
   /\ isByz = [ i \in Proc |-> IF i <= F THEN 1 ELSE 0 ]
   /\ step = [ i \in Proc |-> UNDEFINED ] (* undefined -> prevote -> mainvote -> finalvote *)
-  /\ decide = [ i \in Proc |-> UNDEFINED] (* unknown / decide 0 / decide 1 *)
+  /\ decide = [ i \in Proc |-> UNDEFINED] (* unknown / decide 0 / decide 1 / decide x *)
   /\ nextPrevote = [ i \in Proc |-> UNDEFINED](* unknown / prevote 0 / prevote 1 / prevote random *)
   /\ prevoteState = [ i \in Proc |-> UNDEFINED] (* unkonwn / bset0 / bset1 / bset01 *)
 
@@ -202,15 +203,27 @@ NextPrevoteRandom(i) ==
 
 Decide(i) ==
   /\ decide[i] = UNDEFINED
-  /\ nextPrevote[i] = UNDEFINED
-  /\ \/ step[i] = FINALVOTE0
-     \/ step[i] = FINALVOTE1
-     \/ step[i] = FINALVOTEx
-  /\ \/ Decide1(i)
-     \/ Decide0(i)
-     \/ NextPrevote0(i)
-     \/ NextPrevote1(i)
-     \/ NextPrevoteRandom(i)
+  /\ \/ /\ nextPrevote[i] = UNDEFINED
+        /\ \/ step[i] = FINALVOTE0
+           \/ step[i] = FINALVOTE1
+           \/ step[i] = FINALVOTEx
+        /\ \/ Decide1(i)
+           \/ Decide0(i)
+           \/ NextPrevote0(i)
+           \/ NextPrevote1(i)
+           \/ NextPrevoteRandom(i)
+     \/ /\ nextPrevote[i] # UNDEFINED
+        /\ \A j \in {l \in Proc: isByz[l] = 0}: nextPrevote[j] # UNDEFINED
+        /\ \/ \A j \in {l \in Proc: isByz[l] = 0}: nextPrevote[j] = NEXTPREVOTE0
+              (* eventually decide0 *)
+              /\ decide' = [decide EXCEPT ![i] = DECIDE0]
+           \/ \A j \in {l \in Proc: isByz[l] = 0}: nextPrevote[j] = NEXTPREVOTE1
+              (* eventually decide1 *)
+              /\ decide' = [decide EXCEPT ![i] = DECIDE1]
+           \/ \E j \in {l \in Proc: isByz[l] = 0}: nextPrevote[j] = NEXTPREVOTEx
+              (* eventually decide *)
+              /\ decide' = [decide EXCEPT ![i] = DECIDEx]
+        /\ UNCHANGED << step, sent, prevoteState, isByz, nextPrevote >>
 
 Next ==
   \/ /\ step[1] = UNDEFINED
@@ -251,7 +264,7 @@ Lemma1 ==
   /\ []((\A i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE1 /\ prevoteState[i] = BSET1) => <>(\A i \in {j \in Proc: isByz[j] = 0} : nextPrevote[i] = NEXTPREVOTE1 ))
 
 (* If all correct replicas propose v in round r, then for any r′ > r , any correct replica that enters round r′ sets ivr′ as v.*)
-(* TODO: Lemma2 *)
+(* Lemma2 *)
 
 (* If all correct replicas propose v, then any correct replica that terminates decides v. *)
 Theorem3 ==
@@ -264,19 +277,29 @@ Lemma4 ==
   /\ []((\E i \in {j \in Proc: isByz[j] = 0}: decide[i] = DECIDE1) => <>(\A i \in {j \in Proc: isByz[j] = 0} : nextPrevote[i] = NEXTPREVOTE1))
 
 (* If a correct replica decides v, then any correct replica that terminates decides v *)
-(* TODO: Theorem5 *)
+Theorem5 == 
+  /\ []((\E i \in {j \in Proc: isByz[j] = 0}: decide[i] = DECIDE0) => <>(\A i \in {j \in Proc: isByz[j] = 0} : decide[i] = DECIDE0))
+  /\ []((\E i \in {j \in Proc: isByz[j] = 0}: decide[i] = DECIDE1) => <>(\A i \in {j \in Proc: isByz[j] = 0} : decide[i] = DECIDE1))
+  /\ []((\E i \in {j \in Proc: isByz[j] = 0}: decide[i] = DECIDEx) => <>(\A i \in {j \in Proc: isByz[j] = 0} : decide[i] = DECIDEx))
 
-(* Let v1 ∈ {0, 1} and v2 ∈ {0, 1}. If a correct replica pi r-delivers f + 1 final-voter(v1) and enters round r + 1, another correct replica p j r-delivers f + 1 final-voter(v2) and enters round r + 1, then it holds that v1 = v2. *)
-(* TODO: Lemma6 *)
+(* Let v1 ∈ {0, 1} and v2 ∈ {0, 1}.
+If a correct replica pi r-delivers f + 1 final-voter(v1) and enters round r + 1,
+another correct replica p j r-delivers f + 1 final-voter(v2) and enters round r + 1,
+then it holds that v1 = v2. *)
+Lemma6 == [](~\E i \in {j \in Proc: isByz[j] = 0}, k \in {j \in Proc: isByz[j] = 0}: /\ \/ nextPrevote[i] = NEXTPREVOTE0
+                                                                                        \/ nextPrevote[i] = NEXTPREVOTE1
+                                                                                     /\ \/ nextPrevote[k] = NEXTPREVOTE0
+                                                                                        \/ nextPrevote[k] = NEXTPREVOTE1
+                                                                                     /\ i # k
+                                                                                     /\ nextPrevote[i] # nextPrevote[k]
+)
+
 
 (* Every correct replica eventually decides some value. *)
 Theorem7 == 
    []<>( \/ \A i \in {j \in Proc: isByz[j] = 0} : \/ decide[i] = DECIDE0
-                                                  \/ nextPrevote[i] = NEXTPREVOTE0
-                                                  \/ nextPrevote[i] = NEXTPREVOTEx
-         \/ \A i \in {j \in Proc: isByz[j] = 0} : \/ decide[i] = DECIDE1
-                                                  \/ nextPrevote[i] = NEXTPREVOTE1
-                                                  \/ nextPrevote[i] = NEXTPREVOTEx
+                                                  \/ decide[i] = DECIDE1
+                                                  \/ decide[i] = DECIDEx
        )
 
 (* No correct replica decides twice. *)
