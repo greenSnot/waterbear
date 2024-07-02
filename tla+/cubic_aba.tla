@@ -260,11 +260,19 @@ Corr_Ltl ==
 
 (* It's obvious that once every honest node prevotes v, eventually, every honest node will mainvote v. *)
 
-(* Once every honest node mainvotes 0, eventually, every honest node decides on 0 or prevote0 in the next round. *)
-Corr_Ltl2 ==
-  []((\A i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE0) => <>(\A i \in {j \in Proc: isByz[j] = 0} : decide[i] = DECIDE0 \/ nextPrevote[i] = NEXTPREVOTE0 ))
+(* If all correct replicas propose iv[r] = v in round r, then any correct replica that enters round r + 1 sets iv[r+1] as v. *)
+Lemma1 ==
+  /\ []((\A i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE0) => <>(\A i \in {j \in Proc: isByz[j] = 0} : nextPrevote[i] = NEXTPREVOTE0 ))
+  /\ []((\A i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE1) => <>(\A i \in {j \in Proc: isByz[j] = 0} : nextPrevote[i] = NEXTPREVOTE1 ))
 
-Corr_Ltl3 ==
-  []((\A i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE1) => <>(\A i \in {j \in Proc: isByz[j] = 0} : decide[i] = DECIDE1 \/ nextPrevote[i] = NEXTPREVOTE1 ))
-  
+(* If all correct replicas propose v, then any correct replica that terminates decides v. *)
+Theorem3 ==
+  /\ []((\A i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE1) => <>(
+       \/ \A i \in {j \in Proc: isByz[j] = 0} : decide[j] = UNDEFINED
+       \/ ~\E i \in {j \in Proc: isByz[j] = 0} : decide[j] = DECIDE0 ))
+  /\ []((\A i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE0) => <>(
+       \/ \A i \in {j \in Proc: isByz[j] = 0} : decide[j] = UNDEFINED
+       \/ ~\E i \in {j \in Proc: isByz[j] = 0} : decide[j] = DECIDE1 ))
+
+
 =============================================================================
