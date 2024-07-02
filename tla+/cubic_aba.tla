@@ -2,13 +2,9 @@
 
 (*
 To reduce computations and for simplicity, compare to the pseudocode:
-1. We use "abstraction from a God's perspective" to model the protocol. (i.e., we can count the votes from honest nodes.)
+1. The prevote stage is abstracted into "bset0", "bset1" and "bset01".
+2. The "bsetX" stage is a prerequisite for the other stages.
 2. Byzantine nodes are fixed and always in the first F nodes.
-3. If possible, we only consider the worst(error-prone) cases.
-4. We only simulate the possible and non-intuitive attacks. Byzantine nodes can only send inconsistent votes in the Mainvote stage.
-5. The prevote stage is abstracted into "bset0", "bset1" and "bset01".
-6. The "bsetX" stage is a prerequisite for the other stages.
-7. Round 0 is sufficient to prove this protocol.
 *)
 EXTENDS Naturals, Integers, Sequences, FiniteSets, TLC
 
@@ -80,9 +76,6 @@ VoteSumS(i, _step, _set) ==
     ArrSum([s \in Proc |-> IF s \in _set THEN sent[s][i][_step] ELSE 0])
 VoteSum(i, _step) == 
     ArrSum([s \in Proc |-> sent[s][i][_step]])
-
-VoteFromAnyHonest(i, s) == \E j \in Proc: isByz[j] = 0 /\ sent[j][i][s] = 1
-VoteFromAnyByz(i, s) == \E j \in Proc: isByz[j] = 1 /\ sent[j][i][s] = 1
 
 MainVote0(sender) ==
   /\ step[sender] = PREVOTE
@@ -224,10 +217,10 @@ Next ==
      /\ \E i \in {j \in Proc: isByz[j] = 1}:
         \/ \E k \in {l \in Proc: isByz[l] = 0}:
             \/ \E s \in {MAINVOTE0, MAINVOTE1}:
-                \/ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF s = _s THEN 1 ELSE 0] ELSE sent[i][m]]]
+                \/ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF s = _s THEN 1 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
         \/ \E s \in {FINALVOTE0, FINALVOTE1, FINALVOTEx}:
            (* RBC *)
-           \/ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF isByz[m] = 0 THEN [_s \in Step |-> IF s = _s THEN 1 ELSE 0] ELSE sent[i][m]]]
+           \/ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF isByz[m] = 0 THEN [_s \in Step |-> IF s = _s THEN 1 ELSE IF _s \in {FINALVOTE0, FINALVOTE1, FINALVOTEx} THEN 0 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
      /\ \E i \in {j \in Proc: isByz[j] = 1}:
         \/ \E k \in {l \in Proc: isByz[l] = 0}:
             /\  \A l \in Proc: sent[i][l][MAINVOTE0] = 0
@@ -249,21 +242,13 @@ Spec == Init /\ [][Next]_vars
 
 (* Liveness and correctness check *)
 
-(* Eventually, every honest node either decides on v or prevotes for v in the next round; Otherwise they prevote randomly. *)
-Corr_Ltl == 
-   []<>( \/ \A i \in {j \in Proc: isByz[j] = 0} : \/ decide[i] = DECIDE0
-                                                  \/ nextPrevote[i] = NEXTPREVOTE0
-         \/ \A i \in {j \in Proc: isByz[j] = 0} : \/ decide[i] = DECIDE1
-                                                  \/ nextPrevote[i] = NEXTPREVOTE1
-         \/ \A i \in {j \in Proc: isByz[j] = 0} : nextPrevote[i] = NEXTPREVOTEx
-       )
 
 (* It's obvious that once every honest node prevotes v, eventually, every honest node will mainvote v. *)
 
 (* If all correct replicas propose iv[r] = v in round r, then any correct replica that enters round r + 1 sets iv[r+1] as v. *)
 Lemma1 ==
-  /\ []((\A i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE0) => <>(\A i \in {j \in Proc: isByz[j] = 0} : nextPrevote[i] = NEXTPREVOTE0 ))
-  /\ []((\A i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE1) => <>(\A i \in {j \in Proc: isByz[j] = 0} : nextPrevote[i] = NEXTPREVOTE1 ))
+  /\ []((\A i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE0 /\ prevoteState[i] = BSET0) => <>(\A i \in {j \in Proc: isByz[j] = 0} : nextPrevote[i] = NEXTPREVOTE0 ))
+  /\ []((\A i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE1 /\ prevoteState[i] = BSET1) => <>(\A i \in {j \in Proc: isByz[j] = 0} : nextPrevote[i] = NEXTPREVOTE1 ))
 
 (* If all correct replicas propose v in round r, then for any r′ > r , any correct replica that enters round r′ sets ivr′ as v.*)
 (* TODO: Lemma2 *)
@@ -285,7 +270,14 @@ Lemma4 ==
 (* TODO: Lemma6 *)
 
 (* Every correct replica eventually decides some value. *)
-(* TODO: Theorem7 *)
+Theorem7 == 
+   []<>( \/ \A i \in {j \in Proc: isByz[j] = 0} : \/ decide[i] = DECIDE0
+                                                  \/ nextPrevote[i] = NEXTPREVOTE0
+                                                  \/ nextPrevote[i] = NEXTPREVOTEx
+         \/ \A i \in {j \in Proc: isByz[j] = 0} : \/ decide[i] = DECIDE1
+                                                  \/ nextPrevote[i] = NEXTPREVOTE1
+                                                  \/ nextPrevote[i] = NEXTPREVOTEx
+       )
 
 (* No correct replica decides twice. *)
 (* Theorem8 *)
