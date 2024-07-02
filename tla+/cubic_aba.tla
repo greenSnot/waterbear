@@ -265,14 +265,29 @@ Lemma1 ==
   /\ []((\A i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE0) => <>(\A i \in {j \in Proc: isByz[j] = 0} : nextPrevote[i] = NEXTPREVOTE0 ))
   /\ []((\A i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE1) => <>(\A i \in {j \in Proc: isByz[j] = 0} : nextPrevote[i] = NEXTPREVOTE1 ))
 
+(* If all correct replicas propose v in round r, then for any r′ > r , any correct replica that enters round r′ sets ivr′ as v.*)
+(* TODO: Lemma2 *)
+
 (* If all correct replicas propose v, then any correct replica that terminates decides v. *)
 Theorem3 ==
-  /\ []((\A i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE1) => <>(
-       \/ \A i \in {j \in Proc: isByz[j] = 0} : decide[j] = UNDEFINED
-       \/ ~\E i \in {j \in Proc: isByz[j] = 0} : decide[j] = DECIDE0 ))
-  /\ []((\A i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE0) => <>(
-       \/ \A i \in {j \in Proc: isByz[j] = 0} : decide[j] = UNDEFINED
-       \/ ~\E i \in {j \in Proc: isByz[j] = 0} : decide[j] = DECIDE1 ))
+  /\ []((\A i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE1) => <>(~\E i \in {j \in Proc: isByz[j] = 0} : decide[i] = DECIDE0 ))
+  /\ []((\A i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE0) => <>(~\E i \in {j \in Proc: isByz[j] = 0} : decide[i] = DECIDE1 ))
 
+(* If a correct replica pi decides v in round r , any correct replica that enters round r + 1 sets ivr+1 as v. *)
+Lemma4 ==
+  /\ []((\E i \in {j \in Proc: isByz[j] = 0}: decide[i] = DECIDE0) => <>(\A i \in {j \in Proc: isByz[j] = 0} : nextPrevote[i] = NEXTPREVOTE0))
+  /\ []((\E i \in {j \in Proc: isByz[j] = 0}: decide[i] = DECIDE1) => <>(\A i \in {j \in Proc: isByz[j] = 0} : nextPrevote[i] = NEXTPREVOTE1))
+
+(* If a correct replica decides v, then any correct replica that terminates decides v *)
+(* TODO: Theorem5 *)
+
+(* Let v1 ∈ {0, 1} and v2 ∈ {0, 1}. If a correct replica pi r-delivers f + 1 final-voter(v1) and enters round r + 1, another correct replica p j r-delivers f + 1 final-voter(v2) and enters round r + 1, then it holds that v1 = v2. *)
+(* TODO: Lemma6 *)
+
+(* Every correct replica eventually decides some value. *)
+(* TODO: Theorem7 *)
+
+(* No correct replica decides twice. *)
+(* Theorem8 *)
 
 =============================================================================
