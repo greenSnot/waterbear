@@ -14,7 +14,7 @@ VARIABLES isByz,
           sent,
           step,
           prevoteState,
-          nextPrevote, (* prevote next round *)
+          nextPrevote, (* prevotes of the second round *)
           decide
                           
 ASSUME NF ==
@@ -250,8 +250,6 @@ Next ==
 Spec == Init /\ [][Next]_vars 
              /\ WF_vars(\E self \in {j \in Proc: isByz[j] = 0} : \/ Consume(self)
                                            \/ Decide(self))
-
-\**Symmetry == Permutations(Proc)
 
 (* Liveness and correctness check *)
 
