@@ -1,4 +1,4 @@
------------------------------- MODULE cubic_aba ------------------------------
+------------------------------ MODULE quadratic_aba ------------------------------
 
 (*
 To reduce computations and for simplicity, compare to the pseudocode:
@@ -37,8 +37,11 @@ BSET1 == "bset1"
 BSET01 == "bset01"
 
 PREVOTE == "prevote"
+VOTE0 == "vote0"
+VOTE1 == "vote1"
 MAINVOTE0 == "mainvote0"
 MAINVOTE1 == "mainvote1"
+MAINVOTEx == "mainvotex"
 FINALVOTE0 == "finalvote0"
 FINALVOTE1 == "finalvote1"
 FINALVOTEx == "finalvote*"
@@ -229,11 +232,11 @@ Next ==
   \/ /\ step[1] = UNDEFINED
      /\ \E i \in {j \in Proc: isByz[j] = 1}:
         \/ \E k \in {l \in Proc: isByz[l] = 0}:
-            \/ \E s \in {MAINVOTE0, MAINVOTE1}:
+            \/ \E s \in {MAINVOTE0, MAINVOTE1, FINALVOTE0, FINALVOTE1, FINALVOTEx}:
                 \/ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF s = _s THEN 1 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
-        \/ \E s \in {FINALVOTE0, FINALVOTE1, FINALVOTEx}:
-           (* RBC *)
-           \/ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF isByz[m] = 0 THEN [_s \in Step |-> IF s = _s THEN 1 ELSE IF _s \in {FINALVOTE0, FINALVOTE1, FINALVOTEx} THEN 0 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
+     /\ \E i \in {j \in Proc: isByz[j] = 1}:
+        \/ \E k \in {l \in Proc: isByz[l] = 0}:
+            /\  \A l \in Proc: sent[i][l][MAINVOTE0] = 0
      /\ UNCHANGED << prevoteState, isByz, decide, nextPrevote, step >>
   \/ /\ step[1] = UNDEFINED
      /\ step' = [step EXCEPT ![1] = PREVOTE]
