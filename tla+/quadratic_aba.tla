@@ -234,9 +234,6 @@ Next ==
         \/ \E k \in {l \in Proc: isByz[l] = 0}:
             \/ \E s \in {MAINVOTE0, MAINVOTE1, FINALVOTE0, FINALVOTE1, FINALVOTEx}:
                 \/ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF s = _s THEN 1 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
-     /\ \E i \in {j \in Proc: isByz[j] = 1}:
-        \/ \E k \in {l \in Proc: isByz[l] = 0}:
-            /\  \A l \in Proc: sent[i][l][MAINVOTE0] = 0
      /\ UNCHANGED << prevoteState, isByz, decide, nextPrevote, step >>
   \/ /\ step[1] = UNDEFINED
      /\ step' = [step EXCEPT ![1] = PREVOTE]
