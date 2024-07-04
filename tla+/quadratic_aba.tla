@@ -55,8 +55,11 @@ DECIDE1 == "1"
 DECIDEx == "x"
 
 Step == {
+    VOTE0,
+    VOTE1,
     MAINVOTE0,
     MAINVOTE1,
+    MAINVOTEx,
     FINALVOTE0,
     FINALVOTE1,
     FINALVOTEx
@@ -65,7 +68,7 @@ Step == {
 Init ==  
   /\ sent = [i \in Proc |-> [j \in Proc |-> [s \in Step |-> 0]]]
   /\ isByz = [ i \in Proc |-> IF i <= F THEN 1 ELSE 0 ]
-  /\ step = [ i \in Proc |-> UNDEFINED ] (* undefined -> prevote -> mainvote -> finalvote *)
+  /\ step = [ i \in Proc |-> UNDEFINED ] (* undefined -> prevote -> vote -> mainvote -> finalvote *)
   /\ decide = [ i \in Proc |-> UNDEFINED] (* unknown / decide 0 / decide 1 / decide x *)
   /\ nextPrevote = [ i \in Proc |-> UNDEFINED](* unknown / prevote 0 / prevote 1 / prevote random *)
   /\ prevoteState = [ i \in Proc |-> UNDEFINED] (* unkonwn / bset0 / bset1 / bset01 *)
@@ -81,8 +84,26 @@ VoteSumS(i, _step, _set) ==
 VoteSum(i, _step) == 
     ArrSum([s \in Proc |-> sent[s][i][_step]])
 
-MainVote0(sender) ==
+Vote0(sender) ==
   /\ step[sender] = PREVOTE
+  /\ \/ prevoteState[sender] = BSET0
+     \/ prevoteState[sender] = BSET01
+  /\ step' = [step EXCEPT ![sender] = VOTE0]
+  /\ sent' = [sent EXCEPT ![sender] = [i \in Proc |-> [s \in Step |-> IF s = VOTE0 THEN 1 ELSE sent[sender][i][s]]]]
+  /\ UNCHANGED << isByz, prevoteState, nextPrevote, decide >>
+
+Vote1(sender) ==
+  /\ step[sender] = PREVOTE
+  /\ \/ prevoteState[sender] = BSET1
+     \/ prevoteState[sender] = BSET01
+  /\ step' = [step EXCEPT ![sender] = VOTE1]
+  /\ sent' = [sent EXCEPT ![sender] = [i \in Proc |-> [s \in Step |-> IF s = VOTE1 THEN 1 ELSE sent[sender][i][s]]]]
+  /\ UNCHANGED << isByz, prevoteState, nextPrevote, decide >>
+
+MainVote0(sender) ==
+  /\ VoteSum(sender, VOTE0) >= guardR2
+  /\ \/ step[sender] = VOTE1
+     \/ step[sender] = VOTE0
   /\ \/ prevoteState[sender] = BSET0
      \/ prevoteState[sender] = BSET01
   /\ step' = [step EXCEPT ![sender] = MAINVOTE0]
@@ -90,25 +111,42 @@ MainVote0(sender) ==
   /\ UNCHANGED << isByz, prevoteState, nextPrevote, decide >>
 
 MainVote1(sender) ==
-  /\ step[sender] = PREVOTE
+  /\ VoteSum(sender, VOTE1) >= guardR2
+  /\ \/ step[sender] = VOTE1
+     \/ step[sender] = VOTE0
   /\ \/ prevoteState[sender] = BSET1
      \/ prevoteState[sender] = BSET01
   /\ step' = [step EXCEPT ![sender] = MAINVOTE1]
   /\ sent' = [sent EXCEPT ![sender] = [i \in Proc |-> [s \in Step |-> IF s = MAINVOTE1 THEN 1 ELSE sent[sender][i][s]]]]
   /\ UNCHANGED << isByz, prevoteState, nextPrevote, decide >>
 
+MainVoteX(sender) ==
+  /\ \/ step[sender] = VOTE1
+     \/ step[sender] = VOTE0
+  /\ \E i \in SUBSET Proc: /\ Cardinality(i) = guardR2
+                           /\ \E j \in i, k \in i: j # k /\ sent[j][sender][VOTE0] = 1 /\ sent[k][sender][VOTE1] = 1
+  /\ step' = [step EXCEPT ![sender] = MAINVOTEx]
+  /\ sent' = [sent EXCEPT ![sender] = [i \in Proc |-> [s \in Step |-> IF s = MAINVOTEx THEN 1 ELSE sent[sender][i][s]]]]
+  /\ UNCHANGED << isByz, prevoteState, nextPrevote, decide >>
+
 FinalVote0(sender) ==
-  /\ VoteSum(sender, MAINVOTE0) >= guardR2
+  /\ VoteSum(sender, VOTE0) >= guardR1
+  /\ \E i \in SUBSET Proc: /\ Cardinality(i) = guardR2
+                           /\ \A j \in i: sent[j][sender][MAINVOTE0] = 1
   /\ \/ step[sender] = MAINVOTE1
      \/ step[sender] = MAINVOTE0
+     \/ step[sender] = MAINVOTEx
   /\ step' = [step EXCEPT ![sender] = FINALVOTE0]
   /\ sent' = [sent EXCEPT ![sender] = [i \in Proc |-> [s \in Step |-> IF s = FINALVOTE0 THEN 1 ELSE sent[sender][i][s]]]]
   /\ UNCHANGED << isByz, prevoteState, nextPrevote, decide >>
 
 FinalVote1(sender) ==
-  /\ VoteSum(sender, MAINVOTE1) >= guardR2
+  /\ VoteSum(sender, VOTE1) >= guardR1
+  /\ \E i \in SUBSET Proc: /\ Cardinality(i) = guardR2
+                           /\ \A j \in i: sent[j][sender][MAINVOTE1] = 1
   /\ \/ step[sender] = MAINVOTE1
      \/ step[sender] = MAINVOTE0
+     \/ step[sender] = MAINVOTEx
   /\ step' = [step EXCEPT ![sender] = FINALVOTE1]
   /\ sent' = [sent EXCEPT ![sender] = [i \in Proc |-> [s \in Step |-> IF s = FINALVOTE1 THEN 1 ELSE sent[sender][i][s]]]]
   /\ UNCHANGED << isByz, prevoteState, nextPrevote, decide >>
@@ -116,9 +154,17 @@ FinalVote1(sender) ==
 FinalVoteStar(sender) ==
   /\ \/ step[sender] = MAINVOTE1
      \/ step[sender] = MAINVOTE0
+     \/ step[sender] = MAINVOTEx
   /\ prevoteState[sender] = BSET01
-  /\ \E i \in SUBSET Proc: /\ Cardinality(i) = guardR2
-                           /\ \E j \in i, k \in i: j # k /\ sent[j][sender][MAINVOTE0] = 1 /\ sent[k][sender][MAINVOTE1] = 1
+  /\ \/ /\ \/ VoteSum(sender, VOTE1) >= guardR1
+           \/ VoteSum(sender, VOTE0) >= guardR1
+        /\ \E i \in SUBSET Proc: /\ Cardinality(i) = guardR2
+                                 /\ \A j \in {k \in i: isByz[k] = 0}: \/ step[j] = MAINVOTE0
+                                                                      \/ step[j] = MAINVOTE1
+                                                                      \/ step[j] = MAINVOTEx
+                                 /\ ~\A j \in i: sent[j][sender][MAINVOTE1] = 1
+                                 /\ ~\A j \in i: sent[j][sender][MAINVOTE0] = 1
+     \/ VoteSum(sender, MAINVOTEx) >= guardR2
   /\ step' = [step EXCEPT ![sender] = FINALVOTEx]
   /\ sent' = [sent EXCEPT ![sender] = [i \in Proc |-> [s \in Step |-> IF s = FINALVOTEx THEN 1 ELSE sent[sender][i][s]]]]
   /\ UNCHANGED << isByz, prevoteState, nextPrevote, decide >>
@@ -136,10 +182,16 @@ Consume(sender) ==
         /\ UNCHANGED << sent, isByz, decide, nextPrevote >>
      \/ /\ step[sender] # UNDEFINED
         /\ \E s \in Step:
-           /\ \/ /\ s = MAINVOTE0
+           /\ \/ /\ s = VOTE0
+                 /\ Vote0(sender)
+              \/ /\ s = VOTE1
+                 /\ Vote1(sender)
+              \/ /\ s = MAINVOTE0
                  /\ MainVote0(sender)
               \/ /\ s = MAINVOTE1
                  /\ MainVote1(sender)
+              \/ /\ s = MAINVOTEx
+                 /\ MainVoteX(sender)
               \/ /\ s = FINALVOTE0
                  /\ FinalVote0(sender)
               \/ /\ s = FINALVOTE1
@@ -232,7 +284,7 @@ Next ==
   \/ /\ step[1] = UNDEFINED
      /\ \E i \in {j \in Proc: isByz[j] = 1}:
         \/ \E k \in {l \in Proc: isByz[l] = 0}:
-            \/ \E s \in {MAINVOTE0, MAINVOTE1, FINALVOTE0, FINALVOTE1, FINALVOTEx}:
+            \/ \E s \in {MAINVOTE0, MAINVOTE1, FINALVOTE0, FINALVOTE1}:
                 \/ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF s = _s THEN 1 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
      /\ UNCHANGED << prevoteState, isByz, decide, nextPrevote, step >>
   \/ /\ step[1] = UNDEFINED
@@ -254,50 +306,60 @@ Spec == Init /\ [][Next]_vars
 (* It's obvious that once every honest node prevotes v, eventually, every honest node will mainvote v. *)
 
 (* If all correct replicas propose iv[r] = v in round r, then any correct replica that enters round r + 1 sets iv[r+1] as v. *)
-Lemma1 ==
+Lemma9 ==
   /\ []((\A i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE0 /\ prevoteState[i] = BSET0) => <>(\A i \in {j \in Proc: isByz[j] = 0} : nextPrevote[i] = NEXTPREVOTE0 ))
   /\ []((\A i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE1 /\ prevoteState[i] = BSET1) => <>(\A i \in {j \in Proc: isByz[j] = 0} : nextPrevote[i] = NEXTPREVOTE1 ))
 
 (* If all correct replicas propose v in round r, then for any r′ > r , any correct replica that enters round r′ sets ivr′ as v.*)
-(* Lemma2 *)
+(* Lemma10 *)
+
+(* If a correct replica pi sends final-voter(v), at least one correct replica has proposed ivr = v ̄ and broadcast pre-voter (v ̄). *)
+(* Lemma11 *)
 
 (* If all correct replicas propose v, then any correct replica that terminates decides v. *)
-Theorem3 ==
+Theorem12 ==
   /\ []((\A i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE1) => <>(~\E i \in {j \in Proc: isByz[j] = 0} : decide[i] = DECIDE0 ))
   /\ []((\A i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE0) => <>(~\E i \in {j \in Proc: isByz[j] = 0} : decide[i] = DECIDE1 ))
 
+(* If a correct replica pi sends main-vote_r(v), any correct replica p_j only sends main-vote_r(v) or main-vote_r[∗] *)
+Lemma13 ==
+  /\ []((\E i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE0) => <>(\A i \in {j \in Proc: isByz[j] = 0} : nextPrevote[i] = NEXTPREVOTE0 \/ nextPrevote[i] = NEXTPREVOTEx))
+  /\ []((\E i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE1) => <>(\A i \in {j \in Proc: isByz[j] = 0} : nextPrevote[i] = NEXTPREVOTE1 \/ nextPrevote[i] = NEXTPREVOTEx))
+
+(* If a correct replica pi sends final-voter(v), any correct replica p_j only sends final-vote_r(v) or final-vote_r(x). *)
+(* Lemma14 *)
+
 (* If a correct replica pi decides v in round r , any correct replica that enters round r + 1 sets ivr+1 as v. *)
-Lemma4 ==
+Lemma15 ==
   /\ []((\E i \in {j \in Proc: isByz[j] = 0}: decide[i] = DECIDE0) => <>(\A i \in {j \in Proc: isByz[j] = 0} : nextPrevote[i] = NEXTPREVOTE0))
   /\ []((\E i \in {j \in Proc: isByz[j] = 0}: decide[i] = DECIDE1) => <>(\A i \in {j \in Proc: isByz[j] = 0} : nextPrevote[i] = NEXTPREVOTE1))
 
 (* If a correct replica decides v, then any correct replica that terminates decides v *)
-Theorem5 == 
+Theorem16 == 
   /\ []((\E i \in {j \in Proc: isByz[j] = 0}: decide[i] = DECIDE0) => <>(\A i \in {j \in Proc: isByz[j] = 0} : decide[i] = DECIDE0))
   /\ []((\E i \in {j \in Proc: isByz[j] = 0}: decide[i] = DECIDE1) => <>(\A i \in {j \in Proc: isByz[j] = 0} : decide[i] = DECIDE1))
   /\ []((\E i \in {j \in Proc: isByz[j] = 0}: decide[i] = DECIDEx) => <>(\A i \in {j \in Proc: isByz[j] = 0} : decide[i] = DECIDEx))
 
-(* Let v1 ∈ {0, 1} and v2 ∈ {0, 1}.
-If a correct replica pi r-delivers f + 1 final-voter(v1) and enters round r + 1,
-another correct replica p j r-delivers f + 1 final-voter(v2) and enters round r + 1,
-then it holds that v1 = v2. *)
-Lemma6 == [](~\E i \in {j \in Proc: isByz[j] = 0}, k \in {j \in Proc: isByz[j] = 0}: /\ \/ nextPrevote[i] = NEXTPREVOTE0
-                                                                                        \/ nextPrevote[i] = NEXTPREVOTE1
-                                                                                     /\ \/ nextPrevote[k] = NEXTPREVOTE0
-                                                                                        \/ nextPrevote[k] = NEXTPREVOTE1
-                                                                                     /\ i # k
-                                                                                     /\ nextPrevote[i] # nextPrevote[k]
-)
+(* If a correct replica pi sends voter(v) for v ∈ {0,1}, any correct replica eventually accepts voter(v). *)
+(* Lemma17 *)
 
+(* If a correct replica pi broadcasts a main-voter(v) or a main-voter(∗) message given that v ∈ {0,1}, any correct replica accepts the main-voter() message from pi. *)
+(* Lemma18 *)
+
+(* If a correct replica pi broadcasts a final-voter (v) or a final-voter (∗) message given that v ∈ {0, 1}, any correct replica accepts the final-voter () message. *)
+(* Lemma19 *)
+
+(* Let v1 ∈ {0,1} and v2 ∈ {0,1}. If a correct replica pi receives only n − f final-voter(x) and final-vote_r(v1) messages, another correct replica p_j only receives n− f final-vote_r(v2) and final-voter(x) messages, v1 = v2. *)
+(* Lemma20 *)
 
 (* Every correct replica eventually decides some value. *)
-Theorem7 == 
+Theorem21 == 
    []<>( \/ \A i \in {j \in Proc: isByz[j] = 0} : \/ decide[i] = DECIDE0
                                                   \/ decide[i] = DECIDE1
                                                   \/ decide[i] = DECIDEx
        )
 
 (* No correct replica decides twice. *)
-(* Theorem8 *)
+(* Theorem22 *)
 
 =============================================================================
