@@ -200,8 +200,7 @@ Consume(sender) ==
                  /\ FinalVoteStar(sender)
   
 Decide1(i) ==
-  /\ \/ prevoteState[i] = BSET1
-     \/ prevoteState[i] = BSET01
+  /\ VoteSum(i, MAINVOTE1) >= guardR1
   /\ \E x \in SUBSET Proc: /\ Cardinality(x) = guardR2
                            /\ \A j \in x: sent[j][i][FINALVOTE1] = 1
   /\ decide' = [decide EXCEPT ![i] = DECIDE1]
@@ -209,8 +208,7 @@ Decide1(i) ==
   /\ UNCHANGED << step, sent, prevoteState, isByz >>
 
 Decide0(i) ==
-  /\ \/ prevoteState[i] = BSET0
-     \/ prevoteState[i] = BSET01
+  /\ VoteSum(i, MAINVOTE0) >= guardR1
   /\ \E x \in SUBSET Proc: /\ Cardinality(x) = guardR2
                            /\ \A j \in x: sent[j][i][FINALVOTE0] = 1
   /\ decide' = [decide EXCEPT ![i] = DECIDE0]
@@ -282,9 +280,12 @@ Next ==
   \/ /\ step[1] = UNDEFINED
      /\ \E i \in {j \in Proc: isByz[j] = 1}:
         \/ \E k \in {l \in Proc: isByz[l] = 0}:
-            \/ \E s \in {MAINVOTE0, MAINVOTE1, FINALVOTE0, FINALVOTE1}:
-                /\ sent[i][k][s] = 0
-                /\ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF s = _s THEN 1 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
+            \/ /\ \A s \in {MAINVOTE0, MAINVOTE1, MAINVOTEx}: sent[i][k][s] = 0
+               /\ \E s \in {MAINVOTE0, MAINVOTE1, MAINVOTEx}:
+                  /\ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF s = _s THEN 1 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
+            \/ /\ \A s \in {FINALVOTE0, FINALVOTE1, FINALVOTEx}: sent[i][k][s] = 0
+               /\ \E s \in {FINALVOTE0, FINALVOTE1, FINALVOTEx}:
+                  /\ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF s = _s THEN 1 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
      /\ UNCHANGED << prevoteState, isByz, decide, nextPrevote, step >>
   \/ /\ step[1] = UNDEFINED
      /\ step' = [step EXCEPT ![1] = PREVOTE]
