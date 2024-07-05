@@ -303,7 +303,7 @@ Lemma9 ==
 (* If all correct replicas propose v in round r, then for any r′ > r , any correct replica that enters round r′ sets ivr′ as v.*)
 (* Lemma10 *)
 
-(* If a correct replica pi sends final-voter(v), at least one correct replica has proposed ivr = v ̄ and broadcast pre-voter (v ̄). *)
+(* If a correct replica pi sends finalvote[r](v), at least one correct replica has proposed iv[r] = v̄ and broadcast prevote[r](v̄). *)
 (* Lemma11 *)
 
 (* If all correct replicas propose v, then any correct replica that terminates decides v. *)
@@ -311,15 +311,17 @@ Theorem12 ==
   /\ []((\A i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE1) => <>(~\E i \in {j \in Proc: isByz[j] = 0} : decide[i] = DECIDE0 ))
   /\ []((\A i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE0) => <>(~\E i \in {j \in Proc: isByz[j] = 0} : decide[i] = DECIDE1 ))
 
-(* If a correct replica pi sends main-vote_r(v), any correct replica p_j only sends main-vote_r(v) or main-vote_r[∗] *)
+(* If a correct replica pi sends mainvote[r](v), any correct replica p_j only sends mainvote[r](v) or mainvote[r][∗] *)
 Lemma13 ==
-  /\ []((\E i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE0) => <>(\A i \in {j \in Proc: isByz[j] = 0} : nextPrevote[i] = NEXTPREVOTE0 \/ nextPrevote[i] = NEXTPREVOTEx))
-  /\ []((\E i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE1) => <>(\A i \in {j \in Proc: isByz[j] = 0} : nextPrevote[i] = NEXTPREVOTE1 \/ nextPrevote[i] = NEXTPREVOTEx))
+  /\ []((\E i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE0) => <>(\A i \in {j \in Proc: isByz[j] = 0} : step[i] = MAINVOTE0 \/ step[i] = MAINVOTEx))
+  /\ []((\E i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE1) => <>(\A i \in {j \in Proc: isByz[j] = 0} : step[i] = MAINVOTE1 \/ step[i] = MAINVOTEx))
 
-(* If a correct replica pi sends final-voter(v), any correct replica p_j only sends final-vote_r(v) or final-vote_r(x). *)
-(* Lemma14 *)
+(* If a correct replica pi sends final-voter(v), any correct replica p_j only sends final-vote[r](v) or final-vote[r](x). *)
+Lemma14 ==
+  /\ []((\E i \in {j \in Proc: isByz[j] = 0}: step[i] = FINALVOTE0) => <>(\A i \in {j \in Proc: isByz[j] = 0} : nextPrevote[i] = NEXTPREVOTE0 \/ nextPrevote[i] = NEXTPREVOTEx))
+  /\ []((\E i \in {j \in Proc: isByz[j] = 0}: step[i] = FINALVOTE1) => <>(\A i \in {j \in Proc: isByz[j] = 0} : nextPrevote[i] = NEXTPREVOTE1 \/ nextPrevote[i] = NEXTPREVOTEx))
 
-(* If a correct replica pi decides v in round r , any correct replica that enters round r + 1 sets ivr+1 as v. *)
+(* If a correct replica pi decides v in round r , any correct replica that enters round r + 1 sets iv[r+1] as v. *)
 Lemma15 ==
   /\ []((\E i \in {j \in Proc: isByz[j] = 0}: decide[i] = DECIDE0) => <>(\A i \in {j \in Proc: isByz[j] = 0} : nextPrevote[i] = NEXTPREVOTE0))
   /\ []((\E i \in {j \in Proc: isByz[j] = 0}: decide[i] = DECIDE1) => <>(\A i \in {j \in Proc: isByz[j] = 0} : nextPrevote[i] = NEXTPREVOTE1))
@@ -330,16 +332,16 @@ Theorem16 ==
   /\ []((\E i \in {j \in Proc: isByz[j] = 0}: decide[i] = DECIDE1) => <>(\A i \in {j \in Proc: isByz[j] = 0} : decide[i] = DECIDE1))
   /\ []((\E i \in {j \in Proc: isByz[j] = 0}: decide[i] = DECIDEx) => <>(\A i \in {j \in Proc: isByz[j] = 0} : decide[i] = DECIDEx))
 
-(* If a correct replica pi sends voter(v) for v ∈ {0,1}, any correct replica eventually accepts voter(v). *)
+(* If a correct replica pi sends vote[r](v) for v ∈ {0,1}, any correct replica eventually accepts vote[r](v). *)
 (* Lemma17 *)
 
-(* If a correct replica pi broadcasts a main-voter(v) or a main-voter(∗) message given that v ∈ {0,1}, any correct replica accepts the main-voter() message from pi. *)
+(* If a correct replica pi broadcasts a mainvote[r](v) or a mainvote[r](∗) message given that v ∈ {0,1}, any correct replica accepts the mainvote[r]() message from pi. *)
 (* Lemma18 *)
 
-(* If a correct replica pi broadcasts a final-voter (v) or a final-voter (∗) message given that v ∈ {0, 1}, any correct replica accepts the final-voter () message. *)
+(* If a correct replica pi broadcasts a finalvote[r](v) or a finalvote[r](∗) message given that v ∈ {0, 1}, any correct replica accepts the finalvote[r]() message. *)
 (* Lemma19 *)
 
-(* Let v1 ∈ {0,1} and v2 ∈ {0,1}. If a correct replica pi receives only n − f final-voter(x) and final-vote_r(v1) messages, another correct replica p_j only receives n− f final-vote_r(v2) and final-voter(x) messages, v1 = v2. *)
+(* Let v1 ∈ {0,1} and v2 ∈ {0,1}. If a correct replica pi receives only n − f finalvote[r](x) and finalvote[r](v1) messages, another correct replica p_j only receives n− f finalvote[r](v2) and final-voter(x) messages, v1 = v2. *)
 (* Lemma20 *)
 
 (* Every correct replica eventually decides some value. *)
