@@ -5,6 +5,7 @@ To reduce computations and for simplicity, compare to the pseudocode:
 1. The prevote stage is abstracted into "bset0", "bset1" and "bset01".
 2. The "bsetX" stage is a prerequisite for the other stages.
 3. Byzantine nodes are fixed and always in the first F nodes.
+4. We observed that the nodes only receive n-f finalvote-random, followed by next-prevote-random.
 *)
 EXTENDS Naturals, Integers, Sequences, FiniteSets, TLC
 
@@ -278,7 +279,7 @@ Next ==
                   /\ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF s = _s THEN 1 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
      /\ UNCHANGED << prevoteState, isByz, decide, nextPrevote, step >>
   \/ /\ step[1] = UNDEFINED
-     /\ step' = [step EXCEPT ![1] = PREVOTE]
+     /\ step' = [step EXCEPT ![1] = PREVOTE](* indicates Byzantine nodes are getting ready. *)
      /\ UNCHANGED << prevoteState, isByz, decide, nextPrevote, sent >>
   \/ /\ step[1] # UNDEFINED
      /\ \E self \in {x \in Proc: isByz[x] = 0} :
