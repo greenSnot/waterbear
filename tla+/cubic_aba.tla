@@ -230,10 +230,11 @@ Next ==
      /\ \E i \in {j \in Proc: isByz[j] = 1}:
         \/ \E k \in {l \in Proc: isByz[l] = 0}:
             \/ \E s \in {MAINVOTE0, MAINVOTE1}:
-                \/ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF s = _s THEN 1 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
+                /\ sent[i][k][s] = 0
+                /\ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF s = _s THEN 1 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
         \/ \E s \in {FINALVOTE0, FINALVOTE1, FINALVOTEx}:
            (* RBC *)
-           \/ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF isByz[m] = 0 THEN [_s \in Step |-> IF s = _s THEN 1 ELSE IF _s \in {FINALVOTE0, FINALVOTE1, FINALVOTEx} THEN 0 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
+           /\ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF isByz[m] = 0 THEN [_s \in Step |-> IF s = _s THEN 1 ELSE IF _s \in {FINALVOTE0, FINALVOTE1, FINALVOTEx} THEN 0 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
      /\ UNCHANGED << prevoteState, isByz, decide, nextPrevote, step >>
   \/ /\ step[1] = UNDEFINED
      /\ step' = [step EXCEPT ![1] = PREVOTE]
