@@ -4,7 +4,7 @@
 To reduce computations and for simplicity, compare to the pseudocode:
 1. The prevote stage is abstracted into "bset0", "bset1" and "bset01".
 2. The "bsetX" stage is a prerequisite for the other stages.
-2. Byzantine nodes are fixed and always in the first F nodes.
+3. Byzantine nodes are fixed and always in the first F nodes.
 *)
 EXTENDS Naturals, Integers, Sequences, FiniteSets, TLC
 
@@ -313,10 +313,10 @@ Theorem12 ==
 
 (* If a correct replica pi sends mainvote[r](v), any correct replica p_j only sends mainvote[r](v) or mainvote[r][∗] *)
 Lemma13 ==
-  /\ []((\E i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE0) => <>(\A i \in {j \in Proc: isByz[j] = 0} : step[i] = MAINVOTE0 \/ step[i] = MAINVOTEx))
-  /\ []((\E i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE1) => <>(\A i \in {j \in Proc: isByz[j] = 0} : step[i] = MAINVOTE1 \/ step[i] = MAINVOTEx))
+  /\ []((\E i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE0) => <>(\A i \in {j \in Proc: isByz[j] = 0} : sent[i][1][MAINVOTE0] = 1 \/ sent[i][1][MAINVOTEx] = 1))
+  /\ []((\E i \in {j \in Proc: isByz[j] = 0}: step[i] = MAINVOTE1) => <>(\A i \in {j \in Proc: isByz[j] = 0} : sent[i][1][MAINVOTE1] = 1 \/ sent[i][1][MAINVOTEx] = 1))
 
-(* If a correct replica pi sends final-voter(v), any correct replica p_j only sends final-vote[r](v) or final-vote[r](x). *)
+(* If a correct replica pi sends finalvote[r](v), any correct replica p_j only sends finalvote[r](v) or finalvote[r](x). *)
 Lemma14 ==
   /\ []((\E i \in {j \in Proc: isByz[j] = 0}: step[i] = FINALVOTE0) => <>(\A i \in {j \in Proc: isByz[j] = 0} : nextPrevote[i] = NEXTPREVOTE0 \/ nextPrevote[i] = NEXTPREVOTEx))
   /\ []((\E i \in {j \in Proc: isByz[j] = 0}: step[i] = FINALVOTE1) => <>(\A i \in {j \in Proc: isByz[j] = 0} : nextPrevote[i] = NEXTPREVOTE1 \/ nextPrevote[i] = NEXTPREVOTEx))
@@ -341,7 +341,7 @@ Theorem16 ==
 (* If a correct replica pi broadcasts a finalvote[r](v) or a finalvote[r](∗) message given that v ∈ {0, 1}, any correct replica accepts the finalvote[r]() message. *)
 (* Lemma19 *)
 
-(* Let v1 ∈ {0,1} and v2 ∈ {0,1}. If a correct replica pi receives only n − f finalvote[r](x) and finalvote[r](v1) messages, another correct replica p_j only receives n− f finalvote[r](v2) and final-voter(x) messages, v1 = v2. *)
+(* Let v1 ∈ {0,1} and v2 ∈ {0,1}. If a correct replica pi receives only n − f finalvote[r](x) and finalvote[r](v1) messages, another correct replica p_j only receives n− f finalvote[r](v2) and finalvote[r](x) messages, v1 = v2. *)
 (* Lemma20 *)
 
 (* Every correct replica eventually decides some value. *)
