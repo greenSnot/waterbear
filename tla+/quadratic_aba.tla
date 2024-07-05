@@ -237,18 +237,8 @@ NextPrevote1(i) ==
 
 NextPrevoteRandom(i) ==
   /\ prevoteState[i] = BSET01
-  /\ \/ /\ VoteSum(i, MAINVOTE1) >= guardR1
-        /\ \E x \in SUBSET Proc: /\ Cardinality(x) = guardR2
-                                  /\ \A j \in x: /\ \/ sent[j][i][FINALVOTE1] = 1 
-                                                    \/ sent[j][i][FINALVOTEx] = 1
-                                  /\ ArrSum([s \in Proc |-> IF s \in x THEN sent[s][i][FINALVOTE1] ELSE 0]) < guardR1
-     \/ /\ VoteSum(i, MAINVOTE0) >= guardR1
-        /\ \E x \in SUBSET Proc: /\ Cardinality(x) = guardR2
-                                  /\ \A j \in x: /\ \/ sent[j][i][FINALVOTE0] = 1
-                                                    \/ sent[j][i][FINALVOTEx] = 1
-                                  /\ ArrSum([s \in Proc |-> IF s \in x THEN sent[s][i][FINALVOTE0] ELSE 0]) < guardR1
-     \/ \E x \in SUBSET Proc: /\ Cardinality(x) = guardR2
-                              /\ \A j \in x: sent[j][i][FINALVOTEx] = 1
+  /\ \E x \in SUBSET Proc: /\ Cardinality(x) = guardR2
+                           /\ \A j \in x: sent[j][i][FINALVOTEx] = 1
   /\ nextPrevote' = [nextPrevote EXCEPT ![i] = NEXTPREVOTEx]
   /\ UNCHANGED << step, sent, prevoteState, isByz, decide >>
 
