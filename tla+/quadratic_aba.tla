@@ -38,6 +38,7 @@ vars_except_decide == << prevoteState, sent, step, nextPrevote >>
 rounds == 0 .. 1
 
 UNDEFINED == "-"
+PREPARED == "PREPARED"
 BSET0 == "bset0"
 BSET1 == "bset1"
 BSET01 == "bset01"
@@ -185,9 +186,9 @@ FinalVoteStar(sender) ==
 
 Prepare ==
   \/ /\ step[1] = UNDEFINED
-     /\ \E i \in byzSet:
-        \/ \E k \in honestSet:
-            \/ /\ \A s \in {MAINVOTE0, MAINVOTE1, MAINVOTEx}: sent[i][k][s] = 0
+     /\ \/ \E i \in byzSet:
+           \/ \E k \in honestSet:
+               /\ \A s \in {MAINVOTE0, MAINVOTE1, MAINVOTEx}: sent[i][k][s] = 0
                \** symmetry
                /\ \/ /\ \A j \in {t \in honestSet: t < k}: sent[i][j][MAINVOTE0] = 1
                      /\ \/ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF _s = MAINVOTE1 THEN 1 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
@@ -195,12 +196,16 @@ Prepare ==
                   \/ /\ \A j \in {t \in honestSet: t < k}: sent[i][j][MAINVOTE1] = 1
                      /\ \/ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF _s = MAINVOTE1 THEN 1 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
                         \/ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF _s = MAINVOTEx THEN 1 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
-                  \/ /\ \A j \in {t \in honestSet: t < k}: sent[i][j][MAINVOTEx] = 1
-                     /\ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF _s = MAINVOTEx THEN 1 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
-            \/ /\ \A s \in {FINALVOTE0, FINALVOTE1, FINALVOTEx}: sent[i][k][s] = 0
-               /\ \E s \in {FINALVOTE0, FINALVOTE1, FINALVOTEx}: sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF s = _s THEN 1 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
+                  \/ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF _s = MAINVOTEx THEN 1 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
      /\ UNCHANGED vars_except_sent
   \/ /\ step[1] = UNDEFINED
+     /\ step' = [step EXCEPT ![1] = PREPARED]
+     /\ \/ \E i \in byzSet:
+           \/ \E k \in honestSet:
+               /\ \A s \in {FINALVOTE0, FINALVOTE1, FINALVOTEx}: sent[i][k][s] = 0
+               /\ \E s \in {FINALVOTE0, FINALVOTE1, FINALVOTEx}: sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF s = _s THEN 1 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
+     /\ UNCHANGED vars_except_sent_step
+  \/ /\ step[1] = PREPARED
      /\ step' = [j \in Proc |-> PREVOTE]
      /\ /\ \/ prevoteState' = [j \in Proc |-> IF j > F THEN BSET0 ELSE UNDEFINED]
            \/ prevoteState' = [j \in Proc |-> IF j > F THEN BSET1 ELSE UNDEFINED]
@@ -210,9 +215,9 @@ Prepare ==
 Consume(sender) ==
   /\ decide[sender] = UNDEFINED
   /\ nextPrevote[sender] = UNDEFINED
-  /\ \/ /\ step[1] = UNDEFINED
+  /\ \/ /\ step[1] # PREVOTE
         /\ Prepare
-     \/ /\ step[1] # UNDEFINED
+     \/ /\ step[1] = PREVOTE
         /\ \E s \in Step:
            /\ \/ /\ s = VOTE0
                  /\ Vote0(sender)
