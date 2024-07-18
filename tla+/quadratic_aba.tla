@@ -370,6 +370,9 @@ Theorem21 ==
        )
 
 (* No correct replica decides twice. *)
-(* Theorem22 *)
+Theorem22 == 
+    /\ [](\A i \in honestSet: decide[i] = DECIDE0 => <>(decide[i] = DECIDE0))
+    /\ [](\A i \in honestSet: decide[i] = DECIDE1 => <>(decide[i] = DECIDE1))
+    /\ [](\A i \in honestSet: decide[i] = DECIDEx => <>(decide[i] = DECIDEx))
 
 =============================================================================
