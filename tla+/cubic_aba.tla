@@ -300,6 +300,9 @@ Theorem7 ==
        )
 
 (* No correct replica decides twice. *)
-(* Theorem8 *)
+Theorem8 == 
+    /\ [](\A i \in {j \in Proc: isHonest(j)}: decide[i] = DECIDE0 => <>(decide[i] = DECIDE0))
+    /\ [](\A i \in {j \in Proc: isHonest(j)}: decide[i] = DECIDE1 => <>(decide[i] = DECIDE1))
+    /\ [](\A i \in {j \in Proc: isHonest(j)}: decide[i] = DECIDEx => <>(decide[i] = DECIDEx))
 
 =============================================================================
