@@ -12,6 +12,7 @@ jobs:
           distribution: oracle
           java-version: 21
       - run: wget https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar
+      - run: java -cp ./tla2tools.jar -XX:+UseParallelGC -DTLA-Library= tlc2.TLC tla+/quadratic_raba.tla -tool -modelcheck -config tla+/quadratic_raba.cfg -fpmem 0.9 -workers 4
       - run: java -cp ./tla2tools.jar -XX:+UseParallelGC -DTLA-Library= tlc2.TLC tla+/quadratic_aba.tla -tool -modelcheck -config tla+/quadratic_aba.cfg -fpmem 0.9 -workers 4
       - run: java -cp ./tla2tools.jar -XX:+UseParallelGC -DTLA-Library= tlc2.TLC tla+/cubic_aba.tla -tool -modelcheck -config tla+/cubic_aba.cfg -fpmem 0.9 -workers 4
       
