@@ -31,8 +31,6 @@ vars == << sent, step, prevoteState, decide, nextPrevote >>
 vars_except_sent == << step, prevoteState, decide, nextPrevote >>
 vars_except_sent_step == << prevoteState, decide, nextPrevote >>
 vars_except_step_prevoteState == << sent, decide, nextPrevote >>
-vars_except_sent_step_prevoteState == << decide, nextPrevote >>
-vars_except_prevoteState == << sent, step, decide, nextPrevote >>
 vars_except_nextPrevote == << prevoteState, sent, step, decide >>
 vars_except_decide_nextPrevote== << prevoteState, sent, step >>
 vars_except_decide == << prevoteState, sent, step, nextPrevote >>
@@ -40,6 +38,7 @@ vars_except_decide == << prevoteState, sent, step, nextPrevote >>
 rounds == 0 .. 1
 
 UNDEFINED == "-"
+PREPARED == "PREPARED"
 BSET0 == "bset0"
 BSET1 == "bset1"
 BSET01 == "bset01"
@@ -86,6 +85,17 @@ honestSet == {i \in Proc: i > F}
 SubsetProcGuard1 == {i \in SUBSET Proc: Cardinality(i) = guardR1}
 SubsetProcGuard2 == {i \in SUBSET Proc: Cardinality(i) = guardR2}
 
+ArrSum(s) == LET
+  RECURSIVE Helper(_)
+  Helper(s_) == IF s_ = <<>> THEN 0 ELSE
+  Head(s_) + Helper(Tail(s_))
+IN Helper(s)
+
+VoteSumS(i, _step, _set) == 
+    ArrSum([s \in Proc |-> IF s \in _set THEN sent[s][i][_step] ELSE 0])
+VoteSum(i, _step) == 
+    ArrSum([s \in Proc |-> sent[s][i][_step]])
+
 Fastpath(i) ==
     /\ step[i] # FINALVOTE0
     /\ step[i] # FINALVOTE1
@@ -121,10 +131,12 @@ Vote1(sender) ==
      \/ prevoteState[sender] = BSET01
   /\ \E i \in SubsetProcGuard1: \A j \in i: \/ prevoteState[j] = BSET1
                                             \/ prevoteState[j] = BSET01
-  /\ Fastpath(sender)
+  /\ step' = [step EXCEPT ![sender] = VOTE1]
+  /\ sent' = [sent EXCEPT ![sender] = [i \in Proc |-> [s \in Step |-> IF s = VOTE1 THEN 1 ELSE sent[sender][i][s]]]]
+  /\ UNCHANGED vars_except_sent_step
 
 MainVote0(sender) ==
-  /\ \E i \in SubsetProcGuard2: \A j \in i: sent[j][sender][VOTE0] = 1
+  /\ VoteSum(sender, VOTE0) >= guardR2
   /\ \/ step[sender] = VOTE1
      \/ step[sender] = VOTE0
   /\ \/ prevoteState[sender] = BSET0
@@ -134,24 +146,26 @@ MainVote0(sender) ==
   /\ UNCHANGED vars_except_sent_step
 
 MainVote1(sender) ==
-  /\ \E i \in SubsetProcGuard2: \A j \in i: sent[j][sender][VOTE1] = 1
+  /\ VoteSum(sender, VOTE1) >= guardR2
   /\ \/ step[sender] = VOTE1
      \/ step[sender] = VOTE0
   /\ \/ prevoteState[sender] = BSET1
      \/ prevoteState[sender] = BSET01
-  /\ Fastpath(sender)
+  /\ step' = [step EXCEPT ![sender] = MAINVOTE1]
+  /\ sent' = [sent EXCEPT ![sender] = [i \in Proc |-> [s \in Step |-> IF s = MAINVOTE1 THEN 1 ELSE sent[sender][i][s]]]]
+  /\ UNCHANGED vars_except_sent_step
 
 MainVoteX(sender) ==
   /\ \/ step[sender] = VOTE1
      \/ step[sender] = VOTE0
-  /\ \E i \in SubsetProcGuard2: \E j \in i, k \in i: j # k /\ sent[j][sender][VOTE0] = 1 /\ sent[k][sender][VOTE1] = 1
+  /\ prevoteState[sender] = BSET01
   /\ step' = [step EXCEPT ![sender] = MAINVOTEx]
   /\ sent' = [sent EXCEPT ![sender] = [i \in Proc |-> [s \in Step |-> IF s = MAINVOTEx THEN 1 ELSE sent[sender][i][s]]]]
   /\ UNCHANGED vars_except_sent_step
 
 FinalVote0(sender) ==
-  /\ \E i \in SubsetProcGuard1: \A j \in i: sent[j][sender][VOTE0] = 1
-  /\ \E i \in SubsetProcGuard2: \A j \in i: sent[j][sender][MAINVOTE0] = 1
+  /\ VoteSum(sender, VOTE0) >= guardR1
+  /\ VoteSum(sender, MAINVOTE0) >= guardR2
   /\ \/ step[sender] = MAINVOTE1
      \/ step[sender] = MAINVOTE0
      \/ step[sender] = MAINVOTEx
@@ -160,8 +174,8 @@ FinalVote0(sender) ==
   /\ UNCHANGED vars_except_sent_step
 
 FinalVote1(sender) ==
-  /\ \E i \in SubsetProcGuard1: \A j \in i: sent[j][sender][VOTE1] = 1
-  /\ \E i \in SubsetProcGuard2: \A j \in i: sent[j][sender][MAINVOTE1] = 1
+  /\ VoteSum(sender, VOTE1) >= guardR1
+  /\ VoteSum(sender, MAINVOTE1) >= guardR2
   /\ \/ step[sender] = MAINVOTE1
      \/ step[sender] = MAINVOTE0
      \/ step[sender] = MAINVOTEx
@@ -174,41 +188,55 @@ FinalVoteStar(sender) ==
      \/ step[sender] = MAINVOTE0
      \/ step[sender] = MAINVOTEx
   /\ prevoteState[sender] = BSET01
-  /\ \/ /\ \/ \E i \in SubsetProcGuard1: \A j \in i: sent[j][sender][VOTE1] = 1
-           \/ \E i \in SubsetProcGuard1: \A j \in i: sent[j][sender][VOTE0] = 1
+  /\ \/ /\ \/ VoteSum(sender, VOTE1) >= guardR1
+           \/ VoteSum(sender, VOTE0) >= guardR1
         /\ \E i \in SubsetProcGuard2: /\ \A j \in {k \in i: k > F}: \/ step[j] = MAINVOTE0
                                                                     \/ step[j] = MAINVOTE1
                                                                     \/ step[j] = MAINVOTEx
+                                                                    \/ step[j] = FINALVOTE0
+                                                                    \/ step[j] = FINALVOTE1
+                                                                    \/ step[j] = FINALVOTEx
                                       /\ ~\A j \in i: sent[j][sender][MAINVOTE1] = 1
                                       /\ ~\A j \in i: sent[j][sender][MAINVOTE0] = 1
-     \/ \E i \in SubsetProcGuard2: \A j \in i: sent[j][sender][MAINVOTEx] = 1
+     \/ VoteSum(sender, MAINVOTEx) >= guardR2
   /\ step' = [step EXCEPT ![sender] = FINALVOTEx]
   /\ sent' = [sent EXCEPT ![sender] = [i \in Proc |-> [s \in Step |-> IF s = FINALVOTEx THEN 1 ELSE sent[sender][i][s]]]]
   /\ UNCHANGED vars_except_sent_step
 
 Prepare ==
   \/ /\ step[1] = UNDEFINED
-     /\ \E i \in byzSet:
-        \/ \E k \in honestSet:
-            \/ /\ \A s \in {MAINVOTE0, MAINVOTE1, MAINVOTEx}: sent[i][k][s] = 0
-               /\ \E s \in {MAINVOTE0, MAINVOTE1, MAINVOTEx}: sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF s = _s THEN 1 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
-            \/ /\ \A s \in {FINALVOTE0, FINALVOTE1, FINALVOTEx}: sent[i][k][s] = 0
-               /\ \E s \in {FINALVOTE0, FINALVOTE1, FINALVOTEx}: sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF s = _s THEN 1 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
+     /\ \/ \E i \in byzSet:
+           \/ \E k \in honestSet:
+               /\ \A s \in {MAINVOTE0, MAINVOTE1, MAINVOTEx}: sent[i][k][s] = 0
+               \** symmetry
+               /\ \/ /\ \A j \in {t \in honestSet: t < k}: sent[i][j][MAINVOTE0] = 1
+                     /\ \/ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF _s = MAINVOTE1 THEN 1 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
+                        \/ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF _s = MAINVOTE0 THEN 1 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
+                  \/ /\ \A j \in {t \in honestSet: t < k}: sent[i][j][MAINVOTE1] = 1
+                     /\ \/ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF _s = MAINVOTE1 THEN 1 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
+                        \/ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF _s = MAINVOTEx THEN 1 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
+                  \/ sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF _s = MAINVOTEx THEN 1 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
      /\ UNCHANGED vars_except_sent
   \/ /\ step[1] = UNDEFINED
-     /\ \/ /\ prevoteState' = [j \in Proc |-> IF j > F THEN BSET0 ELSE UNDEFINED]
-           /\ UNCHANGED vars_except_step_prevoteState
-        \/ /\ \/ prevoteState' = [j \in Proc |-> IF j > F THEN BSET1 ELSE UNDEFINED]
-              \/ prevoteState' = [j \in Proc |-> IF j > F THEN BSET01 ELSE UNDEFINED]
+     /\ step' = [step EXCEPT ![1] = PREPARED]
+     /\ \/ \E i \in byzSet:
+           \/ \E k \in honestSet:
+               /\ \A s \in {FINALVOTE0, FINALVOTE1, FINALVOTEx}: sent[i][k][s] = 0
+               /\ \E s \in {FINALVOTE0, FINALVOTE1, FINALVOTEx}: sent' = [sent EXCEPT ![i] = [m \in Proc |-> IF m = k THEN [_s \in Step |-> IF s = _s THEN 1 ELSE sent[i][m][_s]] ELSE sent[i][m]]]
+     /\ UNCHANGED vars_except_sent_step
+  \/ /\ step[1] = PREPARED
      /\ step' = [j \in Proc |-> PREVOTE]
-     /\ UNCHANGED vars_except_step_prevoteState
+     /\ /\ \/ prevoteState' = [j \in Proc |-> IF j > F THEN BSET0 ELSE UNDEFINED]
+           \/ prevoteState' = [j \in Proc |-> IF j > F THEN BSET1 ELSE UNDEFINED]
+           \/ prevoteState' = [j \in Proc |-> IF j > F THEN BSET01 ELSE UNDEFINED]
+        /\ UNCHANGED vars_except_step_prevoteState
 
 Consume(sender) ==
   /\ decide[sender] = UNDEFINED
   /\ nextPrevote[sender] = UNDEFINED
-  /\ \/ /\ step[1] = UNDEFINED
+  /\ \/ /\ step[1] # PREVOTE
         /\ Prepare
-     \/ /\ step[1] # UNDEFINED
+     \/ /\ step[1] = PREVOTE
         /\ \/ Fastpath(sender)
            \/ \E s \in Step:
               /\ \/ /\ s = VOTE0
@@ -229,21 +257,21 @@ Consume(sender) ==
                     /\ FinalVoteStar(sender)
   
 Decide1(i) ==
-  /\ \E j \in SubsetProcGuard1: \A k \in j: sent[k][i][MAINVOTE1] = 1
-  /\ \E x \in SubsetProcGuard2: \A j \in x: sent[j][i][FINALVOTE1] = 1
+  /\ VoteSum(i, MAINVOTE1) >= guardR1
+  /\ VoteSum(i, FINALVOTE1) >= guardR2
   /\ decide' = [decide EXCEPT ![i] = DECIDE1]
   /\ nextPrevote' = [nextPrevote EXCEPT ![i] = NEXTPREVOTE1]
   /\ UNCHANGED vars_except_decide_nextPrevote
 
 Decide0(i) ==
-  /\ \E j \in SubsetProcGuard1: \A k \in j: sent[k][i][MAINVOTE0] = 1
-  /\ \E x \in SubsetProcGuard2: \A j \in x: sent[j][i][FINALVOTE0] = 1
+  /\ VoteSum(i, MAINVOTE0) >= guardR1
+  /\ VoteSum(i, FINALVOTE0) >= guardR2
   /\ decide' = [decide EXCEPT ![i] = DECIDE0]
   /\ nextPrevote' = [nextPrevote EXCEPT ![i] = NEXTPREVOTE0]
   /\ UNCHANGED vars_except_decide_nextPrevote
 
 NextPrevote0(i) ==
-  /\ \E j \in SubsetProcGuard1: \A k \in j: sent[k][i][MAINVOTE0] = 1
+  /\ VoteSum(i, MAINVOTE0) >= guardR1
   /\ prevoteState[i] = BSET01
   /\ \E x \in SubsetProcGuard2:
                            /\ \A j \in x: \/ sent[j][i][FINALVOTE0] = 1 
@@ -253,7 +281,7 @@ NextPrevote0(i) ==
   /\ UNCHANGED vars_except_nextPrevote
 
 NextPrevote1(i) ==
-  /\ \E k \in SubsetProcGuard1: \A j \in k: sent[j][i][MAINVOTE1] = 1
+  /\ VoteSum(i, MAINVOTE1) >= guardR1
   /\ prevoteState[i] = BSET01
   /\ \E x \in SubsetProcGuard2: /\ \A j \in x: \/ sent[j][i][FINALVOTE1] = 1 
                                                \/ sent[j][i][FINALVOTEx] = 1
@@ -263,7 +291,7 @@ NextPrevote1(i) ==
 
 NextPrevoteRandom(i) ==
   /\ prevoteState[i] = BSET01
-  /\ \E x \in SubsetProcGuard2: \A j \in x: sent[j][i][FINALVOTEx] = 1
+  /\ VoteSum(i, FINALVOTEx) >= guardR2
   /\ nextPrevote' = [nextPrevote EXCEPT ![i] = NEXTPREVOTEx]
   /\ UNCHANGED vars_except_nextPrevote
 
@@ -297,8 +325,7 @@ Next == \E self \in honestSet :
            \/ UNCHANGED vars
 
 Spec == Init /\ [][Next]_vars 
-             /\ WF_vars(\E self \in honestSet : \/ Consume(self)
-                                                                 \/ Decide(self))
+             /\ WF_vars(\E self \in honestSet : Consume(self) \/ Decide(self))
 
 (* Liveness and correctness check *)
 
